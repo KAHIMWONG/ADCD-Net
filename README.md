@@ -13,8 +13,8 @@ We present a robust document forgery localization model that adaptively leverage
 
 ## TODO
 
-- [ ] General inference pipline for images outside DocTamper
-- [ ] Update better OCR model
+- [x] General inference pipline for images outside DocTamper
+- [x] Update better OCR model
 - [x] Evaluate ADCD-Net on [ForensicHub](https://github.com/scu-zjz/ForensicHub) benchmark (Doc Protocol)
 - [x] Release model checkpoint and OCR marks of DocTamper 
 - [x] Release training and inference code
@@ -51,6 +51,8 @@ DocTamperOCR/ # OCR mask directory
 
 We only provide the ocr mask of the DocTamper dataset. For other document images, you can use the script in ```seg_char``` to get the ocr mask."
 First, download the OCR model CRAFT model checkpoint from [CRAFT](https://github.com/clovaai/CRAFT-pytorch). Then, set the checkpoint path and document image path in ```seg_char/main.py``` and run the code to get the ocr mask.
+
+**Update!!!** We have updated the OCR model to a better one (PP-OCRv5_server_det). Please refer to ```seg_char/paddleocr.py```.
 
 ```python
 ckpt_path = ''  # TODO: CRAFT model checkpoint
@@ -92,6 +94,12 @@ min_qf = 75  # minimum jpeg quality factor
 shift_1p = False  # shift 1 pixel for evaluation
 val_aug = None # other distortions can be added here
 ```
+
+## General Inference
+1. Before inference, generate OCR masks for your images with `seg_char/paddleocr.py`.
+2. Build a pickle file containing tuples `(img_path, mask_path, ocr_mask_path)`. The `GeneralValDs` class in `ds.py` can construct this dataset for you.
+3. In `cfg.py`, set `mode='general_val'`, and specify the paths to the pickle file and the model checkpoint.
+
 ## Citation
 
 If you find our project useful in your research, please cite it in your publications.

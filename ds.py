@@ -347,6 +347,172 @@ class DtdValDs(Dataset):
             'ori_img': ori_img,
         }
 
+
+class GeneralValDs(Dataset):
+    def __init__(self, ds_name, is_sample=False):
+        pkl_dir = 'path_to_data_path_pkl_dir'  # specify the directory where pkl files are stored
+        pkl_path = op.join(pkl_dir, f'{ds_name}.pkl')
+        with open(pkl_path, 'rb') as f:
+            self.path_list = pickle.load(f)
+
+        self.sample_n = len(self.path_list)
+        if is_sample:
+            self.sample_n = cfg.val_sample_n
+
+        self.qts = load_qt(cfg.qt_path)
+        self.mask_totsr = mask_totsr
+        self.img_totsr = img_totsr
+
+        self.resize_func = A.Compose(
+            [
+                A.LongestMaxSize(1600),  # Resizes so the longest side is 1600 pixels
+                # Add other transforms here if needed, e.g., A.HorizontalFlip(p=0.5)
+            ],
+            additional_targets={'mask2': 'mask'}  # Specify the second mask as type 'mask'
+        )
+
+    def __len__(self):
+        return self.sample_n
+
+    def __getitem__(self, index):
+        img_path, mask_path, ocr_path = self.path_list[index]
+
+        img_name = op.basename(img_path).split('.')[0]
+        img = cv2.imread(img_path)
+        h, w = img.shape[:2]
+        mask = (cv2.imread(mask_path, 0) != 0).astype(np.uint8)
+        ocr_mask = (cv2.imread(ocr_path, 0) != 0).astype(np.uint8)
+
+        # char_seg_path = op.join(self.ocr_dir, img_name + '.pkl')
+        # with open(char_seg_path, 'rb') as f:
+        #     c_bbox = pickle.load(f)
+
+        if h > 1600 or w > 1600:
+            img = np.array(img)
+            aug = self.resize_func(image=img, mask=mask, mask2=ocr_mask)
+            img, mask, ocr_mask = aug['image'], aug['mask'], aug['mask2']
+
+        img = Image.fromarray(img)
+
+        dct, img, qfs = multi_jpeg(deepcopy(img),
+                                   num_jpeg=-1,
+                                   min_qf=-1,
+                                   upper_bound=-1,
+                                   jpeg_record=[100])
+
+        qt = self.qts[qfs[-1]]
+        img = self.img_totsr(img)
+        ori_img = np.array(img)
+        mask = self.mask_totsr(image=mask.copy())['image']
+        ocr_mask = self.mask_totsr(image=ocr_mask.copy())['image']
+
+        return {
+            'img': img,
+            'dct': np.clip(np.abs(dct), 0, 20),
+            'qt': qt,
+            'mask': mask.long(),
+            'ocr_mask': ocr_mask.long(),
+            'img_name': img_name,
+            'ori_img': ori_img,
+        }
+
+
+def pad_collate(batch, pad_value=0.0, mask_ignore_index=-1):
+    """
+    Args
+    ----
+    batch : list of (image, mask) where
+            image:  C x H x W  float tensor
+            mask :  H x W      long tensor  (class indices)  or  None
+    pad_value : value to fill padded image pixels
+    mask_ignore_index : index to fill padded mask pixels
+
+    Returns
+    -------
+    images      : B x C x H_max x W_max   float tensor
+    masks       : B x   H_max x W_max     long  tensor  (same padding)
+    orig_sizes  : B x 2 (H, W)            long  tensor  (original shapes)
+    """
+    imgs = [item['img'] for item in batch]
+    masks = [item['mask'] for item in batch]
+    ocr_masks = [item['ocr_mask'] for item in batch]
+    img_names = [item['img_name'] for item in batch]
+    dcts = [item['dct'] for item in batch]
+    qts = [item['qt'] for item in batch]
+
+    sizes = torch.tensor([[im.shape[-2], im.shape[-1]] for im in imgs],
+                         dtype=torch.long)  # B x 2
+
+    H_max = int(sizes[:, 0].max())
+    W_max = int(sizes[:, 1].max())
+
+    # H_max should be divisible by 8
+    divide_by = 16
+    if H_max % divide_by != 0:
+        H_max = (H_max // divide_by + 1) * divide_by
+    if W_max % divide_by != 0:
+        W_max = (W_max // divide_by + 1) * divide_by
+    H_max = W_max = max(H_max, W_max)  # make it square
+    padded_imgs = []
+    padded_masks = []
+    padded_ocr_masks = []
+    padded_dcts = []
+
+    for im, m, ocr_m, dct, qt in zip(imgs, masks, ocr_masks, dcts, qts):
+        C, H, W = im.shape
+        pad_h = H_max - H
+        pad_w = W_max - W
+        # pad order for F.pad is (left, right, top, bottom)
+        im_p = torch.nn.functional.pad(im, (0, pad_w, 0, pad_h), value=pad_value)
+        padded_imgs.append(im_p)
+
+        # if m is None:
+        #     # create dummy mask filled with ignore_index
+        #     m_p = torch.full((H_max, W_max),
+        #                      fill_value=mask_ignore_index,
+        #                      dtype=torch.long,
+        #                      device=im.device)
+        # else:
+        C, H, W = m.shape
+        pad_h = H_max - H
+        pad_w = W_max - W
+        m_p = torch.nn.functional.pad(m, (0, pad_w, 0, pad_h), value=mask_ignore_index)
+        padded_masks.append(m_p)
+
+        C, H, W = ocr_m.shape
+        pad_h = H_max - H
+        pad_w = W_max - W
+        ocr_m_p = torch.nn.functional.pad(ocr_m, (0, pad_w, 0, pad_h), value=mask_ignore_index)
+        padded_ocr_masks.append(ocr_m_p)
+        H, W = dct.shape
+        pad_h = H_max - H
+        pad_w = W_max - W
+        # pad dct in np array
+        dct_p = torch.nn.functional.pad(torch.tensor(dct), (0, pad_w, 0, pad_h), value=pad_value)
+        padded_dcts.append(dct_p)
+
+    # pad on batch dim, b should be equal to cfg.val_bs
+    if len(padded_imgs) < cfg.val_bs:
+        b_diff = cfg.val_bs - len(padded_imgs)
+        for _ in range(b_diff):
+            padded_imgs.append(torch.full((3, H_max, W_max), fill_value=pad_value))
+            padded_masks.append(torch.full((1, H_max, W_max), fill_value=0, dtype=torch.long))
+            padded_ocr_masks.append(torch.full((1, H_max, W_max), fill_value=0, dtype=torch.long))
+            padded_dcts.append(torch.full((H_max, W_max), fill_value=0, dtype=torch.long))
+            qts.append(torch.full((8, 8), fill_value=1, dtype=torch.long))
+            img_names.append('padding')
+            sizes = torch.cat([sizes, torch.tensor([[H_max, W_max]], dtype=torch.long)], dim=0)
+
+    batch_imgs = torch.stack(padded_imgs)  # B x C x H_max x W_max
+    batch_masks = torch.stack(padded_masks)  # B x H_max x W_max
+    batch_ocr_masks = torch.stack(padded_ocr_masks)  # B x H_max x W_max
+    batch_dcts = torch.stack(padded_dcts)  # B x C x H_max x W_max
+    batch_qts = torch.stack(qts)  # B x C x H_max x W_max
+
+    return batch_imgs, batch_dcts, batch_qts, batch_masks, batch_ocr_masks, list(
+        img_names), sizes  # sizes keeps originals
+
+
 def get_train_dl():
     ds = TrainDs()
     dl = DataLoader(dataset=ds,
@@ -368,6 +534,23 @@ def get_val_dl():
                         batch_size=cfg.val_bs,
                         num_workers=4,
                         shuffle=False)
+        dl_list[val_name] = dl
+    return dl_list
+
+
+def get_general_val_dl():
+    dl_list = {}
+    for val_name in cfg.val_name_list:
+        is_sample = False
+        if 'sample' in val_name:
+            val_name = val_name.replace('_sample', '')
+            is_sample = True
+        ds = GeneralValDs(val_name, is_sample)
+        dl = DataLoader(dataset=ds,
+                        batch_size=cfg.val_bs,
+                        num_workers=4,
+                        shuffle=False,
+                        collate_fn=pad_collate)
         dl_list[val_name] = dl
     return dl_list
 

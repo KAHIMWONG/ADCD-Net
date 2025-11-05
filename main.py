@@ -33,12 +33,14 @@ from torch.optim.lr_scheduler import CosineAnnealingLR
 from model.model import ADCDNet
 from loss.soft_ce_loss import SoftCrossEntropyLoss
 from loss.lovasz_loss import LovaszLoss
-from ds import get_train_dl, get_val_dl
+from ds import get_train_dl, get_val_dl, get_general_val_dl
 import logging
 
 logging.basicConfig(level=logging.INFO,
                     format='%(levelname)s %(asctime)s] %(message)s',
                     datefmt='%m-%d %H:%M:%S')
+
+
 # </editor-fold>
 
 class AverageMeter(object):
@@ -64,8 +66,6 @@ class AverageMeter(object):
 class Trainer(nn.Module):
     def __init__(self):
         super(Trainer, self).__init__()
-        self.train_dl, self.val_dls = get_train_dl(), get_val_dl()
-
         self.tb_writer = SummaryWriter(cfg.tb_log)
         self.ckpt_dir = op.join(cfg.exp_dir, 'ckpt')
         os.makedirs(self.ckpt_dir, exist_ok=True)
@@ -83,6 +83,7 @@ class Trainer(nn.Module):
         self.scaler = GradScaler()
 
     def train(self):
+        self.train_dl = get_train_dl()
         step, min_qf = 1, 100
         self.model.train()
 
@@ -174,6 +175,7 @@ class Trainer(nn.Module):
             self.scheduler.step()
 
     def val(self):
+        self.val_dls = get_val_dl()
         self.model.eval()
         with torch.no_grad():
             val_f1_list = []
@@ -198,6 +200,54 @@ class Trainer(nn.Module):
                     per_f1, per_p, per_r = self.compute_f1(logits, mask)
                     p_list.append(per_p)
                     r_list.append(per_r)
+
+                p = np.array(p_list).mean()
+                r = np.array(r_list).mean()
+                f1 = (2 * p * r / (p + r + 1e-8))
+                logging.info('Precision:%5.4f Recall:%5.4f F1:%5.4f' % (p, r, f1))
+                val_f1_list.append(f1)
+
+        f1 = np.array(val_f1_list).mean()
+        self.model.train()
+        return f1
+
+    def general_val(self):
+        self.gen_val_dls = get_general_val_dl()
+        self.model.eval()
+        with torch.no_grad():
+            val_f1_list = []
+            for val_name, dl in self.gen_val_dls.items():
+                logging.info('Val Set: %s' % val_name)
+                p_list, r_list = [], []
+                for items in tqdm(dl):
+                    img, dct, qt, mask, ocr_mask, img_names, sizes = \
+                        (
+                            items[0].cuda(),
+                            items[1].cuda(),
+                            items[2].cuda().unsqueeze(1),
+                            items[3].cuda(),
+                            items[4].cuda(),
+                            items[5],
+                            items[6]
+                        )
+
+                    with autocast():
+                        logits = self.model(img, dct, qt, mask, ocr_mask, is_train=False)[0]
+
+                    for logit, each_y, (h, w), name in zip(logits, mask, sizes, img_names):
+                        if name != 'padding':
+                            crop_logit = logit[..., :h, :w].unsqueeze(0)
+                            crop_y = each_y[..., :h, :w].unsqueeze(0)
+                            per_f1, per_p, per_r = self.compute_f1(crop_logit, crop_y)
+                            p_list.append(per_p)
+                            r_list.append(per_r)
+
+                    # per_f1, per_p, per_r = self.compute_f1(logits, y)
+                    # p_list.append(per_p)
+                    # r_list.append(per_r)
+
+                    # if cfg.save_vis:
+                    #     self.save_output(img_name, seg_gt, ori_img, [F.softmax(logits, dim=1)[:, 1]])
 
                 p = np.array(p_list).mean()
                 r = np.array(r_list).mean()
@@ -265,3 +315,5 @@ if __name__ == '__main__':
         trainer.train()
     elif cfg.mode == 'val':
         trainer.val()
+    elif cfg.mode == 'general_val':
+        trainer.general_val()

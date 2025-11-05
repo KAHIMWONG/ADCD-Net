@@ -5,10 +5,10 @@ import albumentations as A
 import cv2
 
 gpus = '0,1,2,3'
-mode = 'val'  # 'train', 'val'
+mode = 'general_val'  # 'train', 'val', 'general_val'
 check_val = False
 train_bs = 16
-val_bs = 32
+val_bs = 4
 
 step_per_epoch = 700
 ds_len = cnt_per_epoch = step_per_epoch * train_bs
@@ -39,13 +39,14 @@ val_aug = None # A.GaussianBlur(blur_limit=(7, 7), sigma_limit=(0.7, 0.7), p=1.0
 
 # ------------------ MODEL CFG -------------------
 
-root = 'path/to/root'
-ckpt = 'path/to/ADCD-Net.pth'
-docres_ckpt_path = 'path/to/docres.pkl'
+root = '.../DocTamper'
+ckpt = '.../ADCD-Net.pth'
+docres_ckpt_path = '.../docres.pkl'
 
 # val_name_list = ['TestingSet', 'FCD', 'SCD']
-val_name_list = ['TestingSet_sample', 'FCD_sample', 'SCD_sample']
-val_sample_n = 1000
+# val_name_list = ['TestingSet_sample', 'FCD_sample', 'SCD_sample']
+val_name_list = ['T-SROIE', 'TPIC-13', 'OSTF', 'RTM']
+val_sample_n = 100
 
 # -------------------- FIX ----------------------
 
