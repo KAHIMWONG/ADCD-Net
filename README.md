@@ -52,7 +52,7 @@ DocTamperOCR/ # OCR mask directory
 We only provide the ocr mask of the DocTamper dataset. For other document images, you can use the script in ```seg_char``` to get the ocr mask."
 First, download the OCR model CRAFT model checkpoint from [CRAFT](https://github.com/clovaai/CRAFT-pytorch). Then, set the checkpoint path and document image path in ```seg_char/main.py``` and run the code to get the ocr mask.
 
-**Update!!!** We have updated the OCR model to a better one (PP-OCRv5_server_det). Please refer to ```seg_char/paddleocr.py```.
+**Update!!!** We have updated the OCR model to a better one (PP-OCRv5_server_det). Please refer to ```seg_char/paddleocr.py```. For the environment of PaddleOCR, please check [here](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
 
 ```python
 ckpt_path = ''  # TODO: CRAFT model checkpoint
