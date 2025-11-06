@@ -13,6 +13,7 @@ We present a robust document forgery localization model that adaptively leverage
 
 ## TODO
 
+- [ ] Retrain model with fixed `NonAlignCrop`
 - [x] General inference pipline for images outside DocTamper
 - [x] Update better OCR model
 - [x] Evaluate ADCD-Net on [ForensicHub](https://github.com/scu-zjz/ForensicHub) benchmark (Doc Protocol)
