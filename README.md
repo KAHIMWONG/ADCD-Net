@@ -50,7 +50,7 @@ DocTamperOCR/ # OCR mask directory
 
 ## Get OCR masks
 
-Please refer to ```seg_char.py```. For the environment of PaddleOCR, please check [here](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
+Please refer to ```seg_char.py```. For the environment of PaddleOCR, please check [PaddleOCR](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
 
 ## Train with DocTamper
 
