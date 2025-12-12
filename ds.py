@@ -117,25 +117,36 @@ class AlignCrop(CropNonEmptyMaskIfExists):
 
 class NonAlignCrop(CropNonEmptyMaskIfExists):
     def apply(self, img, x_min=0, x_max=0, y_min=0, y_max=0, **params):
-        # x_min, y_min, x_max, y_max // 8 = 0
+        h, w = img.shape[:2]
         x_diff = x_min % 8
         y_diff = y_min % 8
-        if x_diff == 0 and y_diff == 0:  # if align, then make it non-align
-            # check if x_min, y_min is 0
-            if x_min == 0:
-                x_min, x_max = 1, x_max + 1
-            if y_min == 0:
-                y_min, y_max = 1, y_max + 1
-            if x_max == 256:
-                x_max, x_min = 255, x_min - 1
-            if y_max == 256:
-                y_max, y_min = 255, y_min - 1
+
+        if x_diff == 0 and y_diff == 0:  # if aligned, make it non-aligned
+            # Try to shift the entire crop window by 1 pixel
+            # Strategy: prefer shifting right/down if possible, otherwise left/up
+
+            # For x-direction
+            if x_max < w:  # Can shift right
+                x_min += 1
+                x_max += 1
+            elif x_min > 0:  # Can shift left
+                x_min -= 1
+                x_max -= 1
+
+            # For y-direction
+            if y_max < h:  # Can shift down
+                y_min += 1
+                y_max += 1
+            elif y_min > 0:  # Can shift up
+                y_min -= 1
+                y_max -= 1
+
         return F.crop(img, x_min, y_min, x_max, y_max)
 
 
 def get_align_aug():
     return A.Compose([
-        AlignCrop(cfg.img_size, cfg.img_size, p=1, always_apply=True),
+        AlignCrop(cfg.img_size, cfg.img_size, p=1),
         A.OneOf([
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
@@ -143,12 +154,13 @@ def get_align_aug():
             A.Transpose(p=0.5),
         ], p=1),
         A.OneOf([
-            A.GaussNoise(p=1),
-            A.ISONoise(p=1),
-            A.RandomBrightnessContrast(p=1),
-            A.RandomGamma(p=1),
-            A.RandomToneCurve(p=1),
-            A.Sharpen(p=1),
+            A.Downscale(scale_min=0.5, scale_max=0.99, p=0.5),
+            A.OneOf([
+                A.RandomBrightnessContrast(p=1),
+                A.RandomGamma(p=1),
+                A.RandomToneCurve(p=1),
+                A.Sharpen(p=1),
+            ], p=0.5),
         ], p=0.5),
     ], p=1, bbox_params=A.BboxParams(format='pascal_voc',
                                      min_area=16,
@@ -158,22 +170,26 @@ def get_align_aug():
 
 def get_non_align_aug():
     return A.Compose([
-        NonAlignCrop(cfg.img_size, cfg.img_size, p=1, always_apply=True),
-        A.Downscale(scale_min=0.5, scale_max=0.99, p=0.5),
-        A.GaussianBlur(blur_limit=(3, 9), sigma_limit=(0.5, 0.9), p=0.5),
+        A.RandomScale(scale_limit=(-0.5, 0.5), p=0.5),
+        NonAlignCrop(cfg.img_size, cfg.img_size, p=1),
         A.Compose([
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
             A.RandomRotate90(p=0.5),
             A.Transpose(p=0.5),
-        ], p=1.0),
+        ], p=1),
         A.OneOf([
-            A.GaussNoise(p=1),
-            A.ISONoise(p=1),
-            A.RandomBrightnessContrast(p=1),
-            A.RandomGamma(p=1),
-            A.RandomToneCurve(p=1),
-            A.Sharpen(p=1),
+            A.GaussianBlur(blur_limit=(3, 9), sigma_limit=(0.5, 0.9), p=0.5),
+            A.OneOf([
+                A.GaussNoise(p=1),
+                A.ISONoise(p=1),
+            ], p=0.5),
+            A.OneOf([
+                A.RandomBrightnessContrast(p=1),
+                A.RandomGamma(p=1),
+                A.RandomToneCurve(p=1),
+                A.Sharpen(p=1),
+            ], p=0.5),
         ], p=0.5),
     ], p=1, bbox_params=A.BboxParams(format='pascal_voc',
                                      min_area=16,
@@ -350,7 +366,7 @@ class DtdValDs(Dataset):
 
 class GeneralValDs(Dataset):
     def __init__(self, ds_name, is_sample=False):
-        pkl_dir = 'path_to_data_path_pkl_dir'  # specify the directory where pkl files are stored
+        pkl_dir = '/data/jesonwong47/DocForgData/path_pkl_ocr'  # specify the directory where pkl files are stored
         pkl_path = op.join(pkl_dir, f'{ds_name}.pkl')
         with open(pkl_path, 'rb') as f:
             self.path_list = pickle.load(f)

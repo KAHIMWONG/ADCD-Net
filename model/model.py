@@ -78,16 +78,16 @@ class ADCDNet(nn.Module):
             rec_output, focal_losses = None, None
         else:  # train
             # reconstruction branch
-            rec_img = self.restormer_rec(cnt_feats, frg_feats, is_shuffle=False)
+            # rec_img = self.restormer_rec(cnt_feats, frg_feats, is_shuffle=False)
             shuffle_rec_img = self.restormer_rec(cnt_feats, frg_feats, is_shuffle=True)
             norm_dct = (dct.float() / 20.0)
-            rec_output = (rec_img, shuffle_rec_img, norm_dct)
+            rec_output = (shuffle_rec_img, norm_dct)
 
             # focal
             focal_losses = tuple([supcon_parallel(self.focal_proj[i](pp_feats[i]), mask)
                                   for i in range(len(pp_feats))])
 
-        return logits, loc_feat, align_logits, rec_output, focal_losses
+        return logits, pp_feats, align_logits, rec_output, focal_losses
 
     def get_pp_map(self, pp_feats, y, img_size):
         maps_per_level = []

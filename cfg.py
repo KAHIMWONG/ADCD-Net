@@ -7,7 +7,7 @@ import cv2
 gpus = '0,1,2,3'
 mode = 'general_val'  # 'train', 'val', 'general_val'
 check_val = False
-train_bs = 16
+train_bs = 20
 val_bs = 4
 
 step_per_epoch = 700
@@ -24,7 +24,7 @@ focal_w = [0.001, 0.005, 0.02, 0.1]
 norm_w = 0.1
 
 # ======= Set evaluation distortion here =======
-multi_jpeg_val = False  # able to use multi jpeg distortion
+multi_jpeg_val = True  # able to use multi jpeg distortion
 jpeg_record = False  # manually set multi jpeg distortion record
 min_qf = 75  # minimum jpeg quality factor
 shift_1p = False  # shift 1 pixel for evaluation
@@ -39,13 +39,13 @@ val_aug = None # A.GaussianBlur(blur_limit=(7, 7), sigma_limit=(0.7, 0.7), p=1.0
 
 # ------------------ MODEL CFG -------------------
 
-root = '.../DocTamper'
-ckpt = '.../ADCD-Net.pth'
-docres_ckpt_path = '.../docres.pkl'
+root = '/data/jesonwong47/DocTamper'
+ckpt = '/data/jesonwong47/DocTamper/exp_out/ADCDNet/Log_v11240350/ckpt/Ep_150_0.7741.pth'
+docres_ckpt_path = '/data/jesonwong47/DocTamper/ckpt/docres.pkl'
 
-# val_name_list = ['TestingSet', 'FCD', 'SCD']
-# val_name_list = ['TestingSet_sample', 'FCD_sample', 'SCD_sample']
-val_name_list = ['T-SROIE', 'TPIC-13', 'OSTF', 'RTM']
+test_set = ['T-SROIE', 'TPIC-13', 'OSTF', 'RTM']  # ['TestingSet', 'FCD', 'SCD']
+test_set_sample = [_name + '_sample' for _name in test_set]
+val_name_list = test_set_sample if mode == 'train' else test_set
 val_sample_n = 100
 
 # -------------------- FIX ----------------------

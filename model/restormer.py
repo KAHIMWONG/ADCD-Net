@@ -150,9 +150,10 @@ class TransformerBlock(nn.Module):
         self.ffn = FeedForward(dim, ffn_expansion_factor, bias)
 
     def forward(self, x):
-        x = x + self.attn(self.norm1(x))
-        x = x + self.ffn(self.norm2(x))
-
+        # x = x + self.attn(self.norm1(x))
+        # x = x + self.ffn(self.norm2(x))
+        x = self.norm1(x + self.attn(x))
+        x = self.norm2(x + self.ffn(x))
         return x
 
 
@@ -313,7 +314,7 @@ class RestormerDec(nn.Module):
                  out_channels=3,
                  dim=48,
                  num_blocks=[4, 6, 6, 8],
-                 num_refinement_blocks=4,
+                 num_refinement_blocks=2,
                  heads=[1, 2, 4, 8],
                  ffn_expansion_factor=2.66,
                  bias=False,
@@ -340,9 +341,9 @@ class RestormerDec(nn.Module):
             TransformerBlock(dim=int(dim * 2 ** 1), num_heads=heads[0], ffn_expansion_factor=ffn_expansion_factor,
                              bias=bias, LayerNorm_type=LayerNorm_type) for i in range(num_blocks[0])])
 
-        self.refinement = nn.Sequential(*[
-            TransformerBlock(dim=int(dim * 2 ** 1), num_heads=heads[0], ffn_expansion_factor=ffn_expansion_factor,
-                             bias=bias, LayerNorm_type=LayerNorm_type) for i in range(num_refinement_blocks)])
+        # self.refinement = nn.Sequential(*[
+        #     TransformerBlock(dim=int(dim * 2 ** 1), num_heads=heads[0], ffn_expansion_factor=ffn_expansion_factor,
+        #                      bias=bias, LayerNorm_type=LayerNorm_type) for i in range(num_refinement_blocks)])
 
         self.output = nn.Conv2d(int(dim * 2 ** 1), out_channels, kernel_size=3, stride=1, padding=1, bias=bias)
 
@@ -394,7 +395,7 @@ def get_restormer(model_name, out_channels=None):
             out_channels=out_channels,
             dim=48,
             num_blocks=[2, 3, 3, 4],
-            num_refinement_blocks=4,
+            num_refinement_blocks=1,
             heads=[1, 2, 4, 8],
             ffn_expansion_factor=2.66,
             bias=False,

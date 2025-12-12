@@ -93,7 +93,7 @@ class Trainer(nn.Module):
             if epoch != 1:
                 self.train_dl.dataset.S += cfg.cnt_per_epoch
 
-            for items in self.train_dl:
+            for items in tqdm(self.train_dl):
                 img, dct, qt, mask, ocr_mask, is_align, min_qf = \
                     (
                         items['img'].cuda(),
@@ -106,15 +106,19 @@ class Trainer(nn.Module):
                     )
 
                 with autocast():
-                    logits, loc_feat, align_logits, rec_output, focal_losses = self.model(img, dct, qt, mask, ocr_mask,
+                    logits, norm_feats, align_logits, rec_output, focal_losses = self.model(img, dct, qt, mask, ocr_mask,
                                                                                           is_train=True)
 
                 # ------------------ LOSS ------------------
 
                 # reconstruction loss
-                rec_img, shuffle_rec_img, norm_dct = rec_output
-                img_l1_loss = self.l1(rec_img[:, :3], img) + self.l1(shuffle_rec_img[:, :3], img)
-                dct_l1_loss = self.l1(rec_img[:, -1], norm_dct) + self.l1(shuffle_rec_img[:, -1], norm_dct)
+                # rec_img, shuffle_rec_img, norm_dct = rec_output
+                # img_l1_loss = self.l1(rec_img[:, :3], img) + self.l1(shuffle_rec_img[:, :3], img)
+                # dct_l1_loss = self.l1(rec_img[:, -1], norm_dct) + self.l1(shuffle_rec_img[:, -1], norm_dct)
+
+                shuffle_rec_img, norm_dct = rec_output
+                img_l1_loss = self.l1(shuffle_rec_img[:, :3], img)
+                dct_l1_loss = self.l1(shuffle_rec_img[:, -1], norm_dct)
                 rec_loss = cfg.rec_w * (img_l1_loss + dct_l1_loss)
 
                 # dct align score loss
@@ -126,7 +130,10 @@ class Trainer(nn.Module):
                 focal_loss = torch.stack(focal_loss).sum()
 
                 # for training stability
-                norm_loss = cfg.norm_w * loc_feat.norm(dim=1).mean()
+                norm_losses = []
+                for feat in norm_feats:
+                    norm_losses.append(feat.norm(dim=1).mean())
+                norm_loss = cfg.norm_w * torch.stack(norm_losses).mean()
 
                 ce_loss = cfg.ce_w * self.ce(logits.float(), mask)
                 iou_loss = self.lovasz(logits.float(), mask)
