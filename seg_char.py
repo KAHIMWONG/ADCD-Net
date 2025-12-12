@@ -1,12 +1,10 @@
 import os
+
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-import os.path as op
 import cv2
 import numpy as np
 from paddleocr import TextDetection
-from glob import glob
-import pickle
-from tqdm import tqdm
+
 
 class TextDetector:
     def __init__(self):
@@ -32,6 +30,7 @@ class TextDetector:
 
         # Save the mask as PNG (multiply by 255 for visibility: white text regions on black background)
         cv2.imwrite(save_path, mask * 255)
+
 
 if __name__ == '__main__':
     detector = TextDetector()

@@ -14,6 +14,9 @@ from collections import defaultdict
 import numpy as np
 import datetime
 import logging
+import cv2
+import PIL.Image as Image
+from copy import deepcopy
 
 from torch import nn
 from torch.optim import AdamW
@@ -28,7 +31,7 @@ from model.model import ADCDNet
 from loss.soft_ce_loss import SoftCrossEntropyLoss
 from loss.lovasz_loss import LovaszLoss
 from utils import AverageMeter
-from ds import get_train_dl, get_val_dl
+from ds import get_train_dl, get_val_dl, multi_jpeg, load_qt
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s %(asctime)s] %(message)s', datefmt='%m-%d %H:%M:%S')
 
@@ -236,12 +239,6 @@ class Trainer:
 
         return total_f1
 
-    def infer(self, img_path, save_path):
-
-
-
-        pass
-
     @torch.no_grad()
     def compute_f1(self, logit, y):
         pred = logit.argmax(1)  # ori [b,h,w]
@@ -303,8 +300,9 @@ def main(rank, world_size):
         trainer.val()
     elif cfg.mode == 'infer':
         trainer.infer(
-            img_path='',
-            save_path=''
+            img_path='/data/jesonwong47/DocForgData/T-SROIE/test/X51007846392.jpg',
+            ocr_path='/data/jesonwong47/DocForgData/ocr_mask/T-SROIE/X51007846392.png',
+            save_path='/data/jesonwong47/DocForgData/infer_vis/X51007846392.png'
         )
 
 

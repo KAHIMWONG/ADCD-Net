@@ -1,21 +1,22 @@
+import os.path as op
+import pickle
+import tempfile
+from copy import deepcopy
+from random import randint
+from random import random
+
 import albumentations as A
 import albumentations.augmentations.crops.functional as F
 import cv2
 import lmdb
 import numpy as np
-import os.path as op
-import pickle
 import six
-import tempfile
 import torch
 import torchvision.transforms as T
 from PIL import Image
 from albumentations import CropNonEmptyMaskIfExists
 from albumentations.pytorch import ToTensorV2
-from copy import deepcopy
 from jpeg2dct.numpy import load
-from random import randint
-from random import random
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 
 import cfg
@@ -196,6 +197,7 @@ def get_non_align_aug():
                                      min_visibility=0.2,
                                      label_fields=[]))
 
+
 img_totsr = T.Compose([T.ToTensor(),
                        T.Normalize(mean=(0.485, 0.455, 0.406),
                                    std=(0.229, 0.224, 0.225))])
@@ -365,8 +367,7 @@ class DtdValDs(Dataset):
 
 class GeneralValDs(Dataset):
     def __init__(self, ds_name, is_sample=False):
-        pkl_dir = '/data/jesonwong47/DocForgData/path_pkl_ocr'  # specify the directory where pkl files are stored
-        pkl_path = op.join(pkl_dir, f'{ds_name}.pkl')
+        pkl_path = op.join(cfg.pkl_dir, f'{ds_name}.pkl')
         with open(pkl_path, 'rb') as f:
             self.path_list = pickle.load(f)
 

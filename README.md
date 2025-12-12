@@ -82,10 +82,11 @@ shift_1p = False  # shift 1 pixel for evaluation
 val_aug = None # other distortions can be added here
 ```
 
-## General Inference
-1. Before inference, generate OCR masks for your images with `seg_char/paddleocr.py`.
-2. Build a pickle file containing tuples `(img_path, mask_path, ocr_mask_path)`. The `GeneralValDs` class in `ds.py` can construct this dataset for you.
+## General Evaluation
+1. Generate OCR masks with `seg_char.py`.
+2. Build a pickle file containing list of tuples `(img_path, mask_path, ocr_mask_path)`.
 3. In `cfg.py`, set `mode='general_val'`, and specify the paths to the pickle file and the model checkpoint.
+4. Details can be found in the `GeneralValDs` class in `ds.py` for general dataset construction.
 
 ## Citation
 

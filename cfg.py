@@ -7,7 +7,7 @@ import cv2
 gpus = '0,1,2,3'
 device_n = len(gpus.split(','))
 
-mode = 'val'  # 'train', 'val', 'infer'
+mode = 'val'  # 'train', 'val'
 check_val = False
 train_bs = 5 # batch size per device
 step_per_epoch = 1000
@@ -34,13 +34,14 @@ val_aug = None
 
 # ------------------ MODEL CFG -------------------
 
-root = '/data/jesonwong47/DocTamper'
-ckpt = '/data/jesonwong47/DocTamper/exp_out/NaiveDocRes/latest_best_.55/ckpt/Step200000_Score0.5090.pth'
-docres_ckpt_path = '/data/jesonwong47/DocTamper/ckpt/docres.pkl'
+root = ''
+ckpt = ''
+docres_ckpt_path = ''
+pkl_dir = ''  # specify the directory where pkl files are stored
 
 all_ds_name = ['TestingSet', 'FCD', 'SCD', 'T-SROIE', 'TPIC-13', 'OSTF', 'RTM']
 all_ds_name_s = [name + '_sample' for name in all_ds_name]  # append '_sample' to each name
-val_name_list = all_ds_name_s # if mode == 'train' else all_ds_name
+val_name_list = all_ds_name_s if mode == 'train' else all_ds_name
 val_sample_n = 100
 val_max_size = 1600
 
