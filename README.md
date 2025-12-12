@@ -13,7 +13,9 @@ We present a robust document forgery localization model that adaptively leverage
 
 ## TODO
 
-- [ ] Retrain model with fixed `NonAlignCrop`
+- [x] Update inference code
+- [x] Update DDP training script and make training more stable 
+- [x] Retrain model with fixed `NonAlignCrop`
 - [x] General inference pipline for images outside DocTamper
 - [x] Update better OCR model
 - [x] Evaluate ADCD-Net on [ForensicHub](https://github.com/scu-zjz/ForensicHub) benchmark (Doc Protocol)
@@ -25,15 +27,14 @@ We present a robust document forgery localization model that adaptively leverage
 ![doc_protocol](./fig/doc_protocol.png)
 
 Models are trained on Doctamper train set and evaluated on seven test sets, please refer to [ForensicHub](https://github.com/scu-zjz/ForensicHub) for more details.
-The best scores are marked in green and the second best scores are marked in yellow.
 
 ## Environment Setup
 
-**ADCD-Net is trained on 4 NVIDIA GeForce RTX 4090 24G GPUs which takes about 33 hours**
+**ADCD-Net is trained on 4 NVIDIA GeForce RTX 4090 24G GPUs which takes about 27 hours**
 
-Install dependencies: python 3.8, pytorch 1.11, albumentations 1.3.0
+Install dependencies: python 3.10, pytorch 2.4.0, albumentations 2.0.8
 
-## Prepare Data
+## Prepare DocTamper Data
 
 Download the DocTamper dataset from [DocTamper](https://github.com/qcf-568/DocTamper) (```qt_table.pk``` and files in ```pks``` can be also found from the DocTamper repository) and the ocr mask and model checkpoints from [ADCD-Net](https://drive.google.com/file/d/10m7v0RrmI68UbfaWCwAN0nfR2y7DWS_4/view?usp=sharing) (the data can be accessed without request from now on).
 The files from ADCD-Net is organized as follows:
@@ -48,23 +49,9 @@ DocTamperOCR/ # OCR mask directory
     └── SCD # SCD dataset directory
 ```
 
-## Get OCR masks of images not in DocTamper
+## Get OCR masks
 
-We only provide the ocr mask of the DocTamper dataset. For other document images, you can use the script in ```seg_char``` to get the ocr mask."
-First, download the OCR model CRAFT model checkpoint from [CRAFT](https://github.com/clovaai/CRAFT-pytorch). Then, set the checkpoint path and document image path in ```seg_char/main.py``` and run the code to get the ocr mask.
-
-**Update!!!** We have updated the OCR model to a better one (PP-OCRv5_server_det). Please refer to ```seg_char/paddleocr.py```. For the environment of PaddleOCR, please check [here](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
-
-```python
-ckpt_path = ''  # TODO: CRAFT model checkpoint
-save_dir = '' # TODO: save dir of ocr masks
-img_path = '' # TODO: input document image path
-
-char_seger = CharSeger(ckpt_path=ckpt_path,
-                       save_dir=save_dir)
-
-char_seger.seg_char_per_img(img_path=img_path)
-```
+We have updated the OCR model to a better one (PP-OCRv5_server_det). Please refer to ```seg_char.py```. For the environment of PaddleOCR, please check [here](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
 
 ## Train with DocTamper
 
@@ -74,7 +61,6 @@ The DocRes checkpoint is provided in ```docres.pkl```.
 ```python
 mode = 'train'
 root = 'path/to/root' # TODO:
-ckpt = 'path/to/ADCD-Net.pth' # TODO:
 docres_ckpt_path = 'path/to/docres.pkl' # TODO:
 ```
 

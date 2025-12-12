@@ -36,27 +36,4 @@ class TextDetector:
 if __name__ == '__main__':
     detector = TextDetector()
 
-    pkl_dir = '/data/jesonwong47/DocForgData/path_pkl'
-    pkl_list = glob(os.path.join(pkl_dir, '*.pkl'))
-
-    # remove RTM in pkl_list
-    pkl_list = [pkl for pkl in pkl_list if 'RTM' not in pkl]
-
-    new_pkl_dir = '/data/jesonwong47/DocForgData/path_pkl_ocr'
-    ocr_root = '/data/jesonwong47/DocForgData/ocr_mask'
-    for each_pkl in pkl_list:
-        ds_name = op.basename(each_pkl).replace('.pkl', '')
-        print(f'Processing dataset: {ds_name}')
-        with open(each_pkl, 'rb') as f:
-            path_list = pickle.load(f)
-        new_path_list = []
-        ocr_dir = op.join(ocr_root, ds_name)
-        os.makedirs(ocr_dir, exist_ok=True)
-        for each_path in tqdm(path_list):
-            img_path, mask_path = each_path
-            img_name = op.basename(mask_path)
-            ocr_path = op.join(ocr_dir, img_name)
-            detector.get_mask(img_path, ocr_path)
-            new_path_list.append((img_path, mask_path, ocr_path))
-        with open(op.join(new_pkl_dir, f'{ds_name}.pkl'), 'wb') as f:
-            pickle.dump(new_path_list, f)
+    detector.get_mask(img_path='', save_path='')

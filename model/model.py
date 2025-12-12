@@ -1,15 +1,12 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
 import cfg
-from loss.focal_loss import *
 from model.fph import FPH, AddCoord
 from model.restormer import get_restormer
+from loss.focal_loss import *
 
 
-def get_mlp(in_channels, out_channels=None, bias=True):
-    if out_channels is None:
-        out_channels = in_channels
+def get_mlp(in_channels, out_channels=None, bias=False):
     return nn.Sequential(
         nn.Conv2d(in_channels, in_channels // 2, 1, bias=bias),
         nn.GELU(),
@@ -18,7 +15,7 @@ def get_mlp(in_channels, out_channels=None, bias=True):
 
 class ADCDNet(nn.Module):
     def __init__(self,
-                 cls_n = 2,
+                 cls_n=2,
                  loc_out_dim=96,  # number of classes
                  rec_out_dim=4,  # reconstruction output channels RGB + DCT
                  dct_feat_dim=256,
@@ -38,20 +35,21 @@ class ADCDNet(nn.Module):
         self.dct_align_head = nn.Sequential(
             nn.AdaptiveAvgPool2d(1),
             nn.Flatten(),
-            nn.Linear(dct_feat_dim, dct_feat_dim // 2),
+            nn.Linear(dct_feat_dim, dct_feat_dim // 2, bias=False),
             nn.BatchNorm1d(dct_feat_dim // 2),
-            nn.ReLU(),
-            nn.Linear(dct_feat_dim // 2, 2)
+            nn.ReLU(inplace=True),
+            nn.Linear(dct_feat_dim // 2, 2, bias=False)
         )
         self.add_coord = AddCoord(with_r=False)
 
-        self.focal_proj = nn.ModuleList([get_mlp(in_channels=focal_in_dim[i], out_channels=focal_out_dim) for i in range(len(focal_in_dim))])
+        self.focal_proj = nn.ModuleList(
+            [get_mlp(in_channels=focal_in_dim[i], out_channels=focal_out_dim)
+             for i in range(len(focal_in_dim))])
 
         # pristine prototype estimation
         self.pp_scale_proj = get_mlp(in_channels=pp_scale_n, out_channels=loc_out_dim)
         self.pp_bias_proj = get_mlp(in_channels=pp_scale_n, out_channels=loc_out_dim)
         self.out_head = get_mlp(in_channels=loc_out_dim, out_channels=cls_n)
-
 
     def forward(self, img, dct, qt, mask, ocr_mask, is_train=True):
         img_size = img.size(2)
@@ -62,11 +60,10 @@ class ADCDNet(nn.Module):
         align_score = F.softmax(align_logits, dim=1)[:, -1]
 
         # get rgb feature & localization
-        feat, loc_feat, cnt_feats, frg_feats, pp_feats = self.restormer_loc(img=torch.cat([self.add_coord(img), torch.zeros_like(ocr_mask)], 1),
-                                                                              ms_dct_feats=ms_dct_feats,
-                                                                              dct_align_score=align_score,
-                                                                              ocr_mask=ocr_mask,
-                                                                              img_size=img_size)
+        feat, cnt_feats, frg_feats, pp_feats = self.restormer_loc(
+            img=torch.cat([self.add_coord(img), torch.zeros_like(ocr_mask)], 1),
+            ms_dct_feats=ms_dct_feats,
+            dct_align_score=align_score)
 
         pp_maps = self.get_pp_map(pp_feats, ocr_mask, img_size)
         pp_scale = self.pp_scale_proj(pp_maps)
@@ -74,20 +71,16 @@ class ADCDNet(nn.Module):
         feat = feat * pp_scale + pp_bias
         logits = self.out_head(feat)
 
-        if not is_train:  # val
-            rec_output, focal_losses = None, None
-        else:  # train
-            # reconstruction branch
-            # rec_img = self.restormer_rec(cnt_feats, frg_feats, is_shuffle=False)
+        rec_items, focal_losses = None, None
+        if is_train:
             shuffle_rec_img = self.restormer_rec(cnt_feats, frg_feats, is_shuffle=True)
             norm_dct = (dct.float() / 20.0)
-            rec_output = (shuffle_rec_img, norm_dct)
+            rec_items = (shuffle_rec_img, norm_dct)
 
             # focal
-            focal_losses = tuple([supcon_parallel(self.focal_proj[i](pp_feats[i]), mask)
-                                  for i in range(len(pp_feats))])
+            focal_losses = tuple([supcon_parallel(self.focal_proj[i](pp_feats[i]), mask) for i in range(len(pp_feats))])
 
-        return logits, pp_feats, align_logits, rec_output, focal_losses
+        return logits, pp_feats, align_logits, rec_items, focal_losses
 
     def get_pp_map(self, pp_feats, y, img_size):
         maps_per_level = []
@@ -120,7 +113,7 @@ class ADCDNet(nn.Module):
         return torch.cat(maps_per_level, dim=1)
 
     def load_docres(self):
-        ckpt = torch.load(cfg.docres_ckpt_path, map_location='cpu')['model_state']
+        ckpt = torch.load(cfg.docres_ckpt_path, map_location='cpu', weights_only=True)['model_state']
         # remove 'output' layer in ckpt
         for name in list(ckpt.keys()):
             if 'output' in name:

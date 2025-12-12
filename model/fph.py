@@ -11,6 +11,7 @@ global_params = GlobalParams(width_coefficient=1.8, depth_coefficient=2.6, image
                              num_classes=1000, batch_norm_momentum=0.99, batch_norm_epsilon=0.001,
                              drop_connect_rate=0.0, depth_divisor=8, min_depth=None, include_top=True)
 
+
 class AddCoord(nn.Module):
     def __init__(self, with_r=True):
         super().__init__()
@@ -132,18 +133,27 @@ class FPH(nn.Module):
         self.qt_proj = nn.Embedding(qt_n, qt_embed_dim)
 
         self.conv_1 = nn.Sequential(
-            nn.Conv2d(in_channels=dct_n, out_channels=dct_embed_dim, kernel_size=3, stride=1, dilation=8, padding=8),
-            nn.BatchNorm2d(dct_embed_dim, momentum=momentum), nn.ReLU(inplace=True))
+            nn.Conv2d(in_channels=dct_n, out_channels=dct_embed_dim,
+                      kernel_size=3, stride=1, dilation=8, padding=8),
+            nn.BatchNorm2d(dct_embed_dim, momentum=momentum),
+            nn.ReLU(inplace=True)
+        )
+
         self.conv_2 = nn.Sequential(
-            nn.Conv2d(in_channels=dct_embed_dim, out_channels=qt_embed_dim, kernel_size=1, stride=1, padding=0,
-                      bias=False),
-            nn.BatchNorm2d(qt_embed_dim, momentum=momentum), nn.ReLU(inplace=True))
+            nn.Conv2d(in_channels=dct_embed_dim, out_channels=qt_embed_dim,
+                      kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(qt_embed_dim, momentum=momentum),
+            nn.ReLU(inplace=True)
+        )
+
         self.addcoord = AddCoord()
 
         self.mbconv_blocks = nn.Sequential(
-            nn.Conv2d(in_channels=qt_embed_dim * 2 + 3, out_channels=mbconv_dim, kernel_size=8, stride=8, padding=0,
-                      bias=False),
-            nn.BatchNorm2d(mbconv_dim, momentum=momentum), nn.ReLU(inplace=True),
+            nn.Conv2d(in_channels=qt_embed_dim * 2 + 3, out_channels=mbconv_dim,
+                      kernel_size=8, stride=8, padding=0, bias=False),
+            nn.BatchNorm2d(mbconv_dim, momentum=momentum),
+            nn.ReLU(inplace=True),
+
             MBConvBlock(BlockArgs(num_repeat=mbconv_repeat_n, kernel_size=3, stride=[1], expand_ratio=6,
                                   input_filters=mbconv_dim, output_filters=mbconv_dim,
                                   se_ratio=0.25, id_skip=True), global_params),
@@ -152,7 +162,8 @@ class FPH(nn.Module):
                                   se_ratio=0.25, id_skip=True), global_params),
             MBConvBlock(BlockArgs(num_repeat=mbconv_repeat_n, kernel_size=3, stride=[1], expand_ratio=6,
                                   input_filters=mbconv_dim, output_filters=mbconv_dim,
-                                  se_ratio=0.25, id_skip=True), global_params), )
+                                  se_ratio=0.25, id_skip=True), global_params)
+        )
 
         self.conv_out = nn.ModuleList(
             [nn.Conv2d(in_channels=mbconv_dim, out_channels=out_dim, kernel_size=1, stride=1, padding=0, bias=False)
@@ -163,12 +174,17 @@ class FPH(nn.Module):
         x = self.conv_2(self.conv_1(dct_embed))
 
         b, c, h, w = x.shape
-        x_ = x.reshape(b, c, h // 8, 8, w // 8, 8).permute(0, 1, 3, 5, 2, 4)
-        qt_embed = self.qt_proj(qt.unsqueeze(-1).unsqueeze(-1).long())
-        qt_embed = qt_embed.transpose(1, 6).squeeze(6).contiguous()
-        times = x_ * qt_embed
-        times = times.permute(0, 1, 4, 2, 5, 3).reshape(b, c, h, w)
-        cat = torch.cat((times, x), dim=1)
+        # ---- QT modulation (block-wise) ----
+        qt_embed = self.qt_proj(qt.long())  # (B, 8, 8, C)
+        qt_embed = qt_embed.permute(0, 3, 1, 2)  # (B, C, 8, 8)
+
+        # Tile each block to 8×8 pixels: (B, C, H, W), broadcast-friendly
+        qt_embed = qt_embed.repeat_interleave(h // 8, dim=2).repeat_interleave(h // 8, dim=3)
+
+        # Element-wise modulation; no extra reshapes / permutes
+        times = x * qt_embed
+
+        cat = torch.cat([times, x], dim=1)
 
         dct_feat = self.mbconv_blocks(self.addcoord(cat))
 

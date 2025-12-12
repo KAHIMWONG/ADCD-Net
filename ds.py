@@ -1,23 +1,22 @@
-import os.path as op
-import pickle
-import tempfile
-from copy import deepcopy
-from random import randint
-from random import random
-
 import albumentations as A
 import albumentations.augmentations.crops.functional as F
 import cv2
 import lmdb
 import numpy as np
+import os.path as op
+import pickle
 import six
+import tempfile
 import torch
 import torchvision.transforms as T
 from PIL import Image
 from albumentations import CropNonEmptyMaskIfExists
 from albumentations.pytorch import ToTensorV2
+from copy import deepcopy
 from jpeg2dct.numpy import load
-from torch.utils.data import Dataset, DataLoader
+from random import randint
+from random import random
+from torch.utils.data import Dataset, DataLoader, DistributedSampler
 
 import cfg
 
@@ -106,8 +105,8 @@ def multi_jpeg(img, num_jpeg, min_qf, upper_bound, jpeg_record=None):
 
 
 class AlignCrop(CropNonEmptyMaskIfExists):
-    def apply(self, img, x_min=0, x_max=0, y_min=0, y_max=0, **params):
-        # x_min, y_min, x_max, y_max // 8 = 0
+    def apply(self, img, crop_coords, **params):
+        x_min, y_min, x_max, y_max = crop_coords
         x_diff = x_min % 8
         x_min, x_max = x_min - x_diff, x_max - x_diff
         y_diff = y_min % 8
@@ -116,7 +115,8 @@ class AlignCrop(CropNonEmptyMaskIfExists):
 
 
 class NonAlignCrop(CropNonEmptyMaskIfExists):
-    def apply(self, img, x_min=0, x_max=0, y_min=0, y_max=0, **params):
+    def apply(self, img, crop_coords, **params):
+        x_min, y_min, x_max, y_max = crop_coords
         h, w = img.shape[:2]
         x_diff = x_min % 8
         y_diff = y_min % 8
@@ -154,14 +154,14 @@ def get_align_aug():
             A.Transpose(p=0.5),
         ], p=1),
         A.OneOf([
-            A.Downscale(scale_min=0.5, scale_max=0.99, p=0.5),
+            A.Downscale(scale_range=(0.5, 0.99), p=0.5),
             A.OneOf([
                 A.RandomBrightnessContrast(p=1),
                 A.RandomGamma(p=1),
                 A.RandomToneCurve(p=1),
                 A.Sharpen(p=1),
-            ], p=0.5),
-        ], p=0.5),
+            ], p=1),
+        ], p=0.5)
     ], p=1, bbox_params=A.BboxParams(format='pascal_voc',
                                      min_area=16,
                                      min_visibility=0.2,
@@ -190,12 +190,11 @@ def get_non_align_aug():
                 A.RandomToneCurve(p=1),
                 A.Sharpen(p=1),
             ], p=0.5),
-        ], p=0.5),
+        ], p=0.5)
     ], p=1, bbox_params=A.BboxParams(format='pascal_voc',
                                      min_area=16,
                                      min_visibility=0.2,
                                      label_fields=[]))
-
 
 img_totsr = T.Compose([T.ToTensor(),
                        T.Normalize(mean=(0.485, 0.455, 0.406),
@@ -214,7 +213,7 @@ class TrainDs(Dataset):
         self.qts = load_qt(cfg.qt_path)
 
         self.S = cfg.init_S
-        self.T = cfg.cnt_per_epoch
+        self.T = cfg.step_per_epoch
         self.min_qf = cfg.min_qf
         self.ds_len = cfg.ds_len
 
@@ -334,7 +333,7 @@ class DtdValDs(Dataset):
             ocr_mask = np.roll(ocr_mask, 1, axis=1)
 
         if cfg.multi_jpeg_val:
-            record = list(self.jpeg_record[index])
+            record = list(self.jpeg_record[index][0:1])
         else:
             if cfg.jpeg_record:
                 record = cfg.jpeg_record
@@ -381,7 +380,7 @@ class GeneralValDs(Dataset):
 
         self.resize_func = A.Compose(
             [
-                A.LongestMaxSize(1600),  # Resizes so the longest side is 1600 pixels
+                A.LongestMaxSize(cfg.val_max_size, p=1.0),
                 # Add other transforms here if needed, e.g., A.HorizontalFlip(p=0.5)
             ],
             additional_targets={'mask2': 'mask'}  # Specify the second mask as type 'mask'
@@ -403,7 +402,7 @@ class GeneralValDs(Dataset):
         # with open(char_seg_path, 'rb') as f:
         #     c_bbox = pickle.load(f)
 
-        if h > 1600 or w > 1600:
+        if h > cfg.val_max_size or w > cfg.val_max_size:
             img = np.array(img)
             aug = self.resize_func(image=img, mask=mask, mask2=ocr_mask)
             img, mask, ocr_mask = aug['image'], aug['mask'], aug['mask2']
@@ -431,6 +430,13 @@ class GeneralValDs(Dataset):
             'img_name': img_name,
             'ori_img': ori_img,
         }
+
+
+def get_train_dl(world_size, rank, dp=False):
+    ds = TrainDs()
+    sampler = DistributedSampler(dataset=ds, num_replicas=world_size, rank=rank, shuffle=True) if not dp else None
+    dl = DataLoader(dataset=ds, batch_size=cfg.train_bs, num_workers=cfg.dl_workers, sampler=sampler)
+    return dl
 
 
 def pad_collate(batch, pad_value=0.0, mask_ignore_index=-1):
@@ -507,9 +513,11 @@ def pad_collate(batch, pad_value=0.0, mask_ignore_index=-1):
         dct_p = torch.nn.functional.pad(torch.tensor(dct), (0, pad_w, 0, pad_h), value=pad_value)
         padded_dcts.append(dct_p)
 
+    b = 1
+
     # pad on batch dim, b should be equal to cfg.val_bs
-    if len(padded_imgs) < cfg.val_bs:
-        b_diff = cfg.val_bs - len(padded_imgs)
+    if len(padded_imgs) < b:
+        b_diff = b - len(padded_imgs)
         for _ in range(b_diff):
             padded_imgs.append(torch.full((3, H_max, W_max), fill_value=pad_value))
             padded_masks.append(torch.full((1, H_max, W_max), fill_value=0, dtype=torch.long))
@@ -529,55 +537,38 @@ def pad_collate(batch, pad_value=0.0, mask_ignore_index=-1):
         img_names), sizes  # sizes keeps originals
 
 
-def get_train_dl():
-    ds = TrainDs()
-    dl = DataLoader(dataset=ds,
-                    batch_size=cfg.train_bs,
-                    num_workers=4,
-                    shuffle=True)
-    return dl
-
-
-def get_val_dl():
+def get_val_dl(world_size, rank, dp=False):
     dl_list = {}
     for val_name in cfg.val_name_list:
+
         is_sample = False
         if 'sample' in val_name:
             val_name = val_name.replace('_sample', '')
             is_sample = True
-        ds = DtdValDs(val_name, is_sample)
-        dl = DataLoader(dataset=ds,
-                        batch_size=cfg.val_bs,
-                        num_workers=4,
-                        shuffle=False)
-        dl_list[val_name] = dl
-    return dl_list
 
+        if val_name in ['FCD', 'SCD', 'TestingSet']:
+            ds = DtdValDs(val_name, is_sample)
+            b = 4
+        else:
+            ds = GeneralValDs(val_name, is_sample)
+            b = 1
 
-def get_general_val_dl():
-    dl_list = {}
-    for val_name in cfg.val_name_list:
-        is_sample = False
-        if 'sample' in val_name:
-            val_name = val_name.replace('_sample', '')
-            is_sample = True
-        ds = GeneralValDs(val_name, is_sample)
-        dl = DataLoader(dataset=ds,
-                        batch_size=cfg.val_bs,
-                        num_workers=4,
-                        shuffle=False,
+        sampler = DistributedSampler(dataset=ds, num_replicas=world_size, rank=rank, shuffle=False) if not dp else None
+        dl = DataLoader(dataset=ds, batch_size=b, num_workers=cfg.dl_workers, sampler=sampler,
                         collate_fn=pad_collate)
         dl_list[val_name] = dl
+
     return dl_list
 
 
 if __name__ == '__main__':
+
     ds = TrainDs()
     from tqdm import tqdm
 
     for i in tqdm(range(50000)):
         tmp = ds.__getitem__(i)
         i = 0
-    # ds = DtdValDs(roots='/data/jesonwong47/DocTamper/DocTamperV1/DocTamperV1-FCD',
-    #               minq=75)
-    # ds.__getitem__(0)
+    ds = DtdValDs(roots='/data/jesonwong47/DocTamper/DocTamperV1/DocTamperV1-FCD',
+                  minq=75)
+    ds.__getitem__(0)

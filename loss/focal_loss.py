@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 
 
-def supcon_parallel(f, y, t=0.1, sample_n=256, min_n=3):
+def supcon_parallel(f, y, t=0.1, sample_n=512, min_n=3):
     b, c, h, w = f.shape
 
     # reshape y to the same size of f
@@ -75,45 +75,3 @@ def supcon_parallel(f, y, t=0.1, sample_n=256, min_n=3):
 
     return logits
 
-
-def balance_sup_con_parallel_v1(f, label, pad_mask, t=0.1):
-    b, l, dim = f.shape
-    ori_pad_mask = pad_mask
-    # compute similarity matrix
-    sim = torch.bmm(f, f.permute(0, 2, 1))
-    sim = torch.exp(torch.div(sim, t))  # temp
-
-    # define positive mask
-    p_mask = (label[:, None, :] == label[:, :, None]).float()
-    # fill diagonal with 0 batch version
-    diag_val = torch.eye(l, dtype=torch.bool).cuda().repeat(b, 1, 1)
-    diag_val = ~diag_val
-    p_mask = p_mask * diag_val
-    # mask pad mask == 1
-    pad_mask = pad_mask[:, None, :].repeat(1, l, 1)
-    pad_mask = ~pad_mask
-    p_mask = p_mask * pad_mask
-    p_num = torch.sum(p_mask, dim=-1)
-
-    # define anchor mask
-    a_mask = torch.ones_like(p_mask, device=label.device)
-    a_mask = a_mask * diag_val * pad_mask
-
-    denomin_balance_w = 1 / (p_num[..., None].repeat(1, 1, l) + 1e-8)
-
-    # compute loss
-    denominator = torch.sum(sim * a_mask * denomin_balance_w, dim=-1, keepdim=True)
-    logits = torch.sum(torch.log(sim / denominator) * p_mask, dim=-1)
-
-    p_num  = p_num + (p_num == 0)
-
-    # cls_0_n, cls_1_n = torch.sum(label == 0, dim=-1), torch.sum(label == 1, dim=-1)
-    # cls_1_w = cls_0_n / cls_1_n
-    # sample_w = torch.ones_like(logits, device=label.device)
-    # for i in range(b):
-    #     sample_w[i][label[i] == 1] = cls_1_w[i]
-
-    logits = (-logits / p_num) # * sample_w
-    logits = logits.sum(-1) / (~ori_pad_mask).sum(-1)
-
-    return logits
