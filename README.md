@@ -13,7 +13,6 @@ We present a robust document forgery localization model that adaptively leverage
 
 ## TODO
 
-- [x] Update inference code
 - [x] Update DDP training script and make training more stable 
 - [x] Retrain model with fixed `NonAlignCrop`
 - [x] General inference pipline for images outside DocTamper
@@ -51,12 +50,12 @@ DocTamperOCR/ # OCR mask directory
 
 ## Get OCR masks
 
-We have updated the OCR model to a better one (PP-OCRv5_server_det). Please refer to ```seg_char.py```. For the environment of PaddleOCR, please check [here](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
+Please refer to ```seg_char.py```. For the environment of PaddleOCR, please check [here](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
 
 ## Train with DocTamper
 
-Before run the ```main.py```, please set the paths of the dataset, ocr mask and model checkpoint in ```cfg.py```. 
-The DocRes checkpoint is provided in ```docres.pkl```. 
+1. set the paths of the dataset, ocr mask and model checkpoint in ```cfg.py```
+2. run the ```main.py```
 
 ```python
 mode = 'train'
@@ -66,13 +65,13 @@ docres_ckpt_path = 'path/to/docres.pkl' # TODO:
 
 ## Evaluate with DocTamper
 
-Before run the ```main.py```, please set the paths of the dataset, distortions, ocr mask and model checkpoint in ```cfg.py```. 
-The ADCD-Net checkpoint is provided in ```ADCDNet.pth```. 
+1. set the paths of the dataset, distortions, ocr mask and model checkpoint in ```cfg.py```. 
+2. run the ```main.py```
 
 ```python
 mode = 'val'
 root = 'path/to/root' # TODO:
-ckpt = 'path/to/ADCD-Net.pth' # TODO:
+ckpt = 'path/to/ADCDNet.pth' # TODO:
 docres_ckpt_path = 'path/to/docres.pkl' # TODO:
 
 multi_jpeg_val = False  # able to use multi jpeg distortion
