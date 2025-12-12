@@ -36,11 +36,11 @@ Install dependencies: python 3.10, pytorch 2.4.0, albumentations 2.0.8
 
 ## Prepare DocTamper Data
 
-Download the DocTamper dataset from [DocTamper](https://github.com/qcf-568/DocTamper) (```qt_table.pk``` and files in ```pks``` can be also found from the DocTamper repository) and the ocr mask and model checkpoints from [ADCD-Net](https://drive.google.com/file/d/10m7v0RrmI68UbfaWCwAN0nfR2y7DWS_4/view?usp=sharing) (the data can be accessed without request from now on).
+Download the DocTamper dataset from [DocTamper](https://github.com/qcf-568/DocTamper) (```qt_table.pk``` and files in ```pks``` can be found from the DocTamper repository) and the ocr mask and model checkpoints from [ADCD-Net](https://drive.google.com/file/d/1-5BU3Bavs6SGJpaByua_FhDuUJGoo-iS/view?usp=sharing).
 The files from ADCD-Net is organized as follows:
 
 ```
-ADCD-Net.pth # ADCD-Net checkpoint
+ADCDNet.pth # ADCD-Net checkpoint
 docres.pkl # DocRes checkpoint
 DocTamperOCR/ # OCR mask directory
     ├── TrainingSet # Training set directory
