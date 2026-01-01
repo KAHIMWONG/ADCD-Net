@@ -31,7 +31,7 @@ Models are trained on Doctamper train set and evaluated on seven test sets. The 
 
 ## Environment Setup
 
-Install dependencies: python 3.10, pytorch 2.4.0, albumentations 2.0.8
+Install dependencies: python 3.10.13, pytorch 2.3.0+cu121, albumentations 2.0.8
 
 ## Prepare DocTamper Data
 
