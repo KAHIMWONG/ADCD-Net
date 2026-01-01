@@ -48,6 +48,10 @@ DocTamperOCR/ # OCR mask directory
     └── SCD # SCD dataset directory
 ```
 
+## Prepare Doc Protocol Data
+
+Beside DocTamper, we provide the 4 cross-domain test set data and the corresponding ocr masks and path pickle files [here](https://drive.google.com/file/d/18SFU1BHoBTcvhNnDLoDRqGdpDfzLvnJp/view?usp=sharing), you should modify your correct directory in the path instead.
+
 ## Get OCR masks
 
 Please refer to ```seg_char.py```. For the environment of PaddleOCR, please check [PaddleOCR](https://www.paddlepaddle.org.cn/en/install/quick?docurl=/documentation/docs/en/develop/install/pip/linux-pip_en.html).
