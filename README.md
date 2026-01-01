@@ -50,7 +50,7 @@ DocTamperOCR/ # OCR mask directory
 
 ## Prepare Doc Protocol Data
 
-Beside DocTamper, we provide the 4 cross-domain test set data and the corresponding ocr masks and path pickle files [here](https://drive.google.com/file/d/18SFU1BHoBTcvhNnDLoDRqGdpDfzLvnJp/view?usp=sharing), you should modify your correct directory in the path instead.
+Beside DocTamper, we provide the 4 cross-domain test set data and the corresponding ocr masks and path pickle files [here](https://drive.google.com/file/d/18SFU1BHoBTcvhNnDLoDRqGdpDfzLvnJp/view?usp=sharing), you should modify your correct directory in the path.
 
 ## Get OCR masks
 
