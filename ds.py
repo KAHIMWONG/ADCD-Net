@@ -335,7 +335,7 @@ class DtdValDs(Dataset):
             ocr_mask = np.roll(ocr_mask, 1, axis=1)
 
         if cfg.multi_jpeg_val:
-            record = list(self.jpeg_record[index][0:1])
+            record = list(self.jpeg_record[index][-2:])
         else:
             if cfg.jpeg_record:
                 record = cfg.jpeg_record

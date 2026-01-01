@@ -12,7 +12,7 @@ The official source code of the paper "ADCD-Net: Robust Document Image Forgery L
 We present a robust document forgery localization model that adaptively leverages RGB/DCT forensic traces and incorporates key document image traits. To counter DCT traces' sensitivity to block misalignment, we modulate DCT feature contributions via predicted alignment scores, enhancing resilience to distortions like resizing and cropping. A hierarchical content disentanglement method boosts localization by reducing text-background disparities. Leveraging pristine background regions, we build a untampered prototype to improve accuracy and robustness.
 
 ## TODO
-
+- [x] Correct Doc Protocol evaluation settings and results.
 - [x] Update DDP training script and make training more stable 
 - [x] Retrain model with fixed `NonAlignCrop`
 - [x] General inference pipline for images outside DocTamper
@@ -23,9 +23,9 @@ We present a robust document forgery localization model that adaptively leverage
 
 ## ForensicHub Benchmark (Doc Protocol)
 
-![doc_protocol](./fig/doc_protocol_v1.png)
+![doc_protocol](./fig/doc_protocol.png)
 
-Models are trained on Doctamper train set and evaluated on seven test sets, please refer to [ForensicHub](https://github.com/scu-zjz/ForensicHub) for more details.
+Models are trained on Doctamper train set and evaluated on seven test sets. The samples in FCD, SCD and Test set are compressed once, using the final quality factor specified in the official DocTamper pickle file. The authentic images are skipped in all test set since there are no true positives. Please refer to [ForensicHub](https://github.com/scu-zjz/ForensicHub) for more details.
 
 ## Environment Setup
 
