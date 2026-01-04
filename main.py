@@ -298,12 +298,6 @@ def main(rank, world_size):
         trainer.train()
     elif cfg.mode == 'val':
         trainer.val()
-    elif cfg.mode == 'infer':
-        trainer.infer(
-            img_path='/data/jesonwong47/DocForgData/T-SROIE/test/X51007846392.jpg',
-            ocr_path='/data/jesonwong47/DocForgData/ocr_mask/T-SROIE/X51007846392.png',
-            save_path='/data/jesonwong47/DocForgData/infer_vis/X51007846392.png'
-        )
 
 
 if __name__ == '__main__':
